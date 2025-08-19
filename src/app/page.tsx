@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,7 +15,7 @@ import { getAllGadgets } from "@/lib/firebase-utils";
 import { RecommendationEngine } from "@/lib/recommendation-engine";
 import { Gadget, GadgetCategory, UserPreferences, RecommendationResult } from "@/types/gadget";
 
-export default function GadgetGuru() {
+function SearchComponent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const recommendationsRef = useRef<HTMLDivElement>(null);
@@ -485,5 +485,13 @@ export default function GadgetGuru() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function Page() {
+  return (
+    <Suspense>
+      <SearchComponent />
+    </Suspense>
   );
 }
