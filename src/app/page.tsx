@@ -38,15 +38,62 @@ function SearchComponent() {
     "Tablet", "Camera", "Charger & Cables", "Other"
   ];
 
-  const priorityOptions = [
-    "Battery Life", "Camera Quality", "Storage Capacity", "RAM", 
-    "Processor Speed", "Display Quality", "Build Quality", "Performance"
-  ];
+  const purposeOptionsByCategory: Record<GadgetCategory, string[]> = {
+    Smartphone: [
+      "Gaming", "Photography", "Entertainment", "Travel", "General Use", "Work/Professional"
+    ],
+    Laptop: [
+      "Work/Professional", "Gaming", "Entertainment", "General Use"
+    ],
+    Headphones: [
+      "Music/Audio", "Travel", "Work/Professional", "General Use"
+    ],
+    Smartwatch: [
+      "Fitness/Health", "Travel", "General Use"
+    ],
+    Tablet: [
+      "Entertainment", "Work/Professional", "Gaming", "General Use"
+    ],
+    Camera: [
+      "Photography", "Travel", "Professional Work", "General Use"
+    ],
+    "Charger & Cables": [
+      "General Use", "Travel"
+    ],
+    Other: [
+      "General Use"
+    ],
+  };
 
-  const purposeOptions = [
-    "Gaming", "Photography", "Work/Professional", "Entertainment", 
-    "Fitness/Health", "Music/Audio", "General Use", "Travel"
-  ];
+  const priorityOptionsByCategory: Record<GadgetCategory, string[]> = {
+    Smartphone: [
+      "Battery Life", "Camera Quality", "Storage Capacity", "RAM", "Processor Speed", "Display Quality", "Build Quality", "Performance", "5G Connectivity"
+    ],
+    Laptop: [
+      "Processor Speed", "RAM", "SSD Storage", "Graphics", "Display Quality", "Ports", "Battery Life", "Build Quality"
+    ],
+    Headphones: [
+      "Noise Cancellation", "Driver Size", "Audio Codec", "Bass", "Wireless Range", "Battery Life", "Design"
+    ],
+    Smartwatch: [
+      "Heart Rate Monitor", "GPS", "Water Resistance", "Battery Life", "Display Quality", "Notifications"
+    ],
+    Tablet: [
+      "Screen Size", "Refresh Rate", "RAM", "Storage Capacity", "Battery Life", "Display Quality"
+    ],
+    Camera: [
+      "Sensor Size", "Lens Mount", "Video Resolution", "Image Stabilization"
+    ],
+    "Charger & Cables": [
+      "Power Output", "Fast Charging", "Connector Type", "Cable Length", "Durability"
+    ],
+    Other: [
+      "Build Quality", "Compatibility"
+    ],
+  };
+
+  const currentPurposeOptions = useMemo(() => purposeOptionsByCategory[preferences.category] || [], [preferences.category]);
+  const currentPriorityOptions = useMemo(() => priorityOptionsByCategory[preferences.category] || [], [preferences.category]);
 
   const features = [
     {
@@ -251,7 +298,10 @@ function SearchComponent() {
                   value={preferences.category}
                   onValueChange={(value) => setPreferences(prev => ({ 
                     ...prev, 
-                    category: value as GadgetCategory 
+                    category: value as GadgetCategory,
+                    // reset purpose and priorities when category changes
+                    purpose: "",
+                    priorities: [],
                   }))}
                 >
                   <SelectTrigger className="mt-2 h-10 sm:h-12">
@@ -297,7 +347,7 @@ function SearchComponent() {
                   }))}
                   className="mt-3 sm:mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3"
                 >
-                  {purposeOptions.map((purpose) => (
+                  {currentPurposeOptions.map((purpose) => (
                     <div key={purpose} className="flex items-center space-x-2 sm:space-x-3 p-2 sm:p-3 border rounded-lg hover:bg-gray-50">
                       <RadioGroupItem value={purpose} id={purpose} />
                       <Label htmlFor={purpose} className="text-xs sm:text-sm font-medium cursor-pointer">{purpose}</Label>
@@ -310,7 +360,7 @@ function SearchComponent() {
               <div>
                 <Label className="text-base sm:text-lg font-medium text-gray-900">What are your priorities?</Label>
                 <div className="mt-3 sm:mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
-                  {priorityOptions.map((priority) => (
+                  {currentPriorityOptions.map((priority) => (
                     <div key={priority} className="flex items-center space-x-2 sm:space-x-3 p-2 sm:p-3 border rounded-lg hover:bg-gray-50">
                       <input
                         type="checkbox"

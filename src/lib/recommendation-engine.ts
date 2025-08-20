@@ -160,7 +160,35 @@ function scoreCamera(gadget: any, preferences: any, specs: any, priorityLower: s
   if (priorityLower.includes('sensor') && specs.sensorSize) score += 0.2;
   if (priorityLower.includes('lens') && specs.lensMount) score += 0.15;
   if (priorityLower.includes('video') && specs.videoResolution) score += 0.15;
+  if ((priorityLower.includes('stabilization') || priorityLower.includes('stabiliser') || priorityLower.includes('image')) && specs.imageStabilization) score += 0.15;
   return score;
+}
+
+// Charger & Cables scoring
+function scoreChargerCables(gadget: any, preferences: any, specs: any, priorityLower: string): number {
+  let score = 0;
+  if ((priorityLower.includes('power') || priorityLower.includes('watt')) && specs.powerOutput) score += 0.2;
+  if ((priorityLower.includes('fast') || priorityLower.includes('quick')) && specs.fastCharging) score += 0.2;
+  if ((priorityLower.includes('connector') || priorityLower.includes('type-c') || priorityLower.includes('usb')) && specs.connectorType) score += 0.2;
+  if ((priorityLower.includes('length') || priorityLower.includes('cable')) && specs.cableLength) score += 0.15;
+  if ((priorityLower.includes('durability') || priorityLower.includes('material')) && specs.material) score += 0.15;
+  return score;
+}
+
+// Other category generic scoring: try to match priorities against any spec value
+function scoreOther(gadget: any, preferences: any, specs: any, priorityLower: string): number {
+  let score = 0;
+  for (const priority of preferences.priorities) {
+    const p = priority.toLowerCase();
+    for (const [key, value] of Object.entries(specs)) {
+      if (!value) continue;
+      if (key.toLowerCase().includes(p) || value.toString().toLowerCase().includes(p)) {
+        score += 0.1;
+        break;
+      }
+    }
+  }
+  return Math.min(0.6, score);
 }
 
 export class RecommendationEngine {
@@ -183,6 +211,15 @@ public getRecommendations(preferences: UserPreferences, limit: number = 5): Reco
   for (const gadget of this.gadgets) {
     if (gadget.category !== preferences.category) continue;
     if (gadget.price < preferences.budget.min || gadget.price > preferences.budget.max) continue;
+    // Strict brand filter for Smartphones when brand preferences are provided
+    if (
+      preferences.category === 'Smartphone' &&
+      preferences.brandPreferences &&
+      preferences.brandPreferences.length > 0 &&
+      !this.isPreferredBrand(gadget.brand, preferences.brandPreferences)
+    ) {
+      continue;
+    }
 
     const specs = gadget.specifications as any;
     const priorityLower = preferences.priorities.map(p => p.toLowerCase()).join(' ');
@@ -192,22 +229,53 @@ public getRecommendations(preferences: UserPreferences, limit: number = 5): Reco
     switch (gadget.category) {
       case 'Smartphone':
         score += scoreSmartphone(gadget, preferences, specs, priorityLower, allSpecsInBudget);
+        // Explicit 5G priority support
+        if ((priorityLower.includes('5g') || priorityLower.includes('connectivity')) && specs.networkType && specs.networkType.toLowerCase().includes('5g')) {
+          score += 0.15;
+        }
         break;
       case 'Laptop':
         score += scoreLaptop(gadget, preferences, specs, priorityLower);
         break;
       case 'Headphones':
         score += scoreHeadphones(gadget, preferences, specs, priorityLower);
+        if (priorityLower.includes('battery') && (specs.battery || specs.batteryLife)) score += 0.15;
         break;
       case 'Smartwatch':
         score += scoreSmartwatch(gadget, preferences, specs, priorityLower);
+        if (priorityLower.includes('battery') && (specs.battery || specs.batteryLife)) score += 0.15;
+        if (priorityLower.includes('display') && (specs.displayType || specs.displaySize)) score += 0.1;
+        if (priorityLower.includes('notification') && specs.notifications) score += 0.1;
         break;
       case 'Tablet':
         score += scoreTablet(gadget, preferences, specs, priorityLower);
+        if (priorityLower.includes('battery') && specs.battery) score += 0.12;
+        if (priorityLower.includes('display') && (specs.displayType || specs.resolution)) score += 0.1;
         break;
       case 'Camera':
         score += scoreCamera(gadget, preferences, specs, priorityLower);
         break;
+      case 'Charger & Cables':
+        score += scoreChargerCables(gadget, preferences, specs, priorityLower);
+        break;
+      case 'Other':
+        score += scoreOther(gadget, preferences, specs, priorityLower);
+        break;
+    }
+
+    // Specific features score (based on user-provided features list)
+    if (preferences.specificFeatures && preferences.specificFeatures.length > 0) {
+      let matchedFeatures = 0;
+      for (const feature of preferences.specificFeatures) {
+        const featureLower = feature.toLowerCase();
+        if (this.matchesSpecificFeature(specs, featureLower)) {
+          matchedFeatures += 1;
+        }
+      }
+      if (matchedFeatures > 0) {
+        const ratio = matchedFeatures / preferences.specificFeatures.length;
+        score += Math.min(0.25, ratio * 0.25);
+      }
     }
 
     // Price, Brand, Purpose scoring
@@ -227,6 +295,14 @@ public getRecommendations(preferences: UserPreferences, limit: number = 5): Reco
 
     for (const gadget of this.gadgets) {
       if (gadget.category !== preferences.category) continue;
+      if (
+        preferences.category === 'Smartphone' &&
+        preferences.brandPreferences &&
+        preferences.brandPreferences.length > 0 &&
+        !this.isPreferredBrand(gadget.brand, preferences.brandPreferences)
+      ) {
+        continue;
+      }
 
       const specs = gadget.specifications as any;
       const priorityLower = preferences.priorities.map(p => p.toLowerCase()).join(' ');
@@ -235,22 +311,51 @@ public getRecommendations(preferences: UserPreferences, limit: number = 5): Reco
       switch (gadget.category) {
         case 'Smartphone':
           score += scoreSmartphone(gadget, preferences, specs, priorityLower, allSpecsInCategory);
+          if ((priorityLower.includes('5g') || priorityLower.includes('connectivity')) && specs.networkType && specs.networkType.toLowerCase().includes('5g')) {
+            score += 0.15;
+          }
           break;
         case 'Laptop':
           score += scoreLaptop(gadget, preferences, specs, priorityLower);
           break;
         case 'Headphones':
           score += scoreHeadphones(gadget, preferences, specs, priorityLower);
+          if (priorityLower.includes('battery') && (specs.battery || specs.batteryLife)) score += 0.15;
           break;
         case 'Smartwatch':
           score += scoreSmartwatch(gadget, preferences, specs, priorityLower);
+          if (priorityLower.includes('battery') && (specs.battery || specs.batteryLife)) score += 0.15;
+          if (priorityLower.includes('display') && (specs.displayType || specs.displaySize)) score += 0.1;
+          if (priorityLower.includes('notification') && specs.notifications) score += 0.1;
           break;
         case 'Tablet':
           score += scoreTablet(gadget, preferences, specs, priorityLower);
+          if (priorityLower.includes('battery') && specs.battery) score += 0.12;
+          if (priorityLower.includes('display') && (specs.displayType || specs.resolution)) score += 0.1;
           break;
         case 'Camera':
           score += scoreCamera(gadget, preferences, specs, priorityLower);
           break;
+        case 'Charger & Cables':
+          score += scoreChargerCables(gadget, preferences, specs, priorityLower);
+          break;
+        case 'Other':
+          score += scoreOther(gadget, preferences, specs, priorityLower);
+          break;
+      }
+
+      if (preferences.specificFeatures && preferences.specificFeatures.length > 0) {
+        let matchedFeatures = 0;
+        for (const feature of preferences.specificFeatures) {
+          const featureLower = feature.toLowerCase();
+          if (this.matchesSpecificFeature(specs, featureLower)) {
+            matchedFeatures += 1;
+          }
+        }
+        if (matchedFeatures > 0) {
+          const ratio = matchedFeatures / preferences.specificFeatures.length;
+          score += Math.min(0.25, ratio * 0.25);
+        }
       }
 
       score += this.calculatePriceScore(gadget.price, preferences.budget) * 0.25;
@@ -349,6 +454,14 @@ public getRecommendations(preferences: UserPreferences, limit: number = 5): Reco
     }
 
     return 0.3; // No match
+  }
+
+  // Helper: case-insensitive partial brand match
+  private isPreferredBrand(brand: string, brandPreferences: string[]): boolean {
+    if (!brand || !brandPreferences || brandPreferences.length === 0) return false;
+    const brandLower = brand.toLowerCase();
+    const prefs = brandPreferences.map(b => b.toLowerCase());
+    return prefs.includes(brandLower) || prefs.some(pref => brandLower.includes(pref) || pref.includes(brandLower));
   }
 
   private matchesSpecificFeature(specs: any, featureLower: string): boolean {
@@ -532,9 +645,14 @@ public getRecommendations(preferences: UserPreferences, limit: number = 5): Reco
       reasons.push(`Fits your budget of ₹${preferences.budget.min.toLocaleString('en-IN')}-₹${preferences.budget.max.toLocaleString('en-IN')}`);
     }
 
-    // Brand reason
-    if (preferences.brandPreferences?.includes(gadget.brand)) {
-      reasons.push(`Matches your preferred brand: ${gadget.brand}`);
+    // Brand reason (case-insensitive with partial match support)
+    const brandPrefs = preferences.brandPreferences?.map(b => b.toLowerCase()) || [];
+    if (brandPrefs.length > 0) {
+      const brandLower = gadget.brand.toLowerCase();
+      const isPreferredBrand = brandPrefs.includes(brandLower) || brandPrefs.some(pref => brandLower.includes(pref) || pref.includes(brandLower));
+      if (isPreferredBrand) {
+        reasons.push(`Matches your preferred brand: ${gadget.brand}`);
+      }
     }
 
     // Enhanced feature reasons based on category
@@ -550,6 +668,9 @@ public getRecommendations(preferences: UserPreferences, limit: number = 5): Reco
         break;
       case 'Smartwatch':
         reasonsSmartwatch(specs, preferences, reasons);
+        break;
+      case 'Charger & Cables':
+        reasonsChargerCables(specs, preferences, reasons);
         break;
       default:
         // Generic feature reasons
@@ -569,6 +690,21 @@ public getRecommendations(preferences: UserPreferences, limit: number = 5): Reco
             reasons.push(`Sufficient RAM: ${specs.ram}`);
           }
         }
+    }
+
+    // Specific feature reasons (limit to 1-2)
+    if (preferences.specificFeatures && preferences.specificFeatures.length > 0) {
+      const matched: string[] = [];
+      for (const feature of preferences.specificFeatures) {
+        const featureLower = feature.toLowerCase();
+        if (this.matchesSpecificFeature(specs, featureLower)) {
+          matched.push(feature);
+        }
+        if (matched.length >= 2) break;
+      }
+      for (const f of matched) {
+        reasons.push(`Has ${f}`);
+      }
     }
 
     // Purpose-specific reasons
@@ -679,4 +815,12 @@ function reasonsSmartwatch(specs: any, preferences: any, reasons: string[]): voi
   if (specs.waterResistance) {
     reasons.push(`Water resistance: ${specs.waterResistance}`);
   }
+  if (specs.battery) {
+    reasons.push(`Battery: ${specs.battery}`);
+  }
+}
+function reasonsChargerCables(specs: any, preferences: any, reasons: string[]): void {
+  if (specs.fastCharging) reasons.push('Supports fast charging');
+  if (specs.powerOutput) reasons.push(`Power output: ${specs.powerOutput}`);
+  if (specs.connectorType) reasons.push(`Connector: ${specs.connectorType}`);
 }
